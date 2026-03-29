@@ -1,0 +1,9 @@
+hydronaut
+
+libtorch
+build/
+
+*.pt
+*.log
+
+screenshots/
