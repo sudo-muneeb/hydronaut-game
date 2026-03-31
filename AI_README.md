@@ -101,7 +101,7 @@ The reward functions vary slightly by level to guide the agent toward the exact 
 ### Level 1 (Survival)
 The goal is simply to survive the swarm of triangles for as long as possible.
 - **+1.0**: For every frame survived.
-- **-100.0**: Upon collision with a triangle (Lethal).
+- **-1.0**: Upon collision with a triangle (Lethal).
 
 ### Level 2 & 3 (Treasure Hunting)
 The agent must actively navigate the screen to catch the treasure chest while avoiding complex boss enemies. To prevent the agent from finding safe "blind spots" and camping indefinitely, the reward is heavily shaped:
@@ -109,7 +109,7 @@ The agent must actively navigate the screen to catch the treasure chest while av
 - **+Approach (distance_closed * 0.50)**: Strong positive reinforcement for moving *closer* to the treasure.
 - **-0.50 (Idle Penalty)**: If the agent's speed drops below `0.5f`, it is punished to prevent camping.
 - **+200.0**: Massive spike reward upon successfully intersecting the treasure chest.
-- **-100.0**: Upon collision with an enemy (Lethal).
+- **-1.0**: Upon collision with an enemy (Lethal).
 
 ---
 

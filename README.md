@@ -34,7 +34,7 @@ At the heart of the project is a deep neural network that learned to conquer the
 ### State & Reward Shaping
 - **Normalized Observations**: The AI receives a 50-dimensional normalized (`[0, 1]` and `[-1, 1]`) float array carrying game context: Level ID, viewport dimensions, player velocity, timeout counters, proximity coordinates for up to 8 objects, and ability readiness signals.
 - **Expanded Action Space**: The AI can now use special abilities (Dash for invulnerability, Sonar for slowdown) in addition to directional movement, learning WHEN to activate them strategically.
-- **Goal-Oriented Rewards**: Level 1 rewards survival. Levels 2 & 3 incentivize approaching treasure, punish idle camping, and provide massive reward spikes (+200.0) for collecting treasure while treating enemy collision as lethal (-100.0).
+- **Goal-Oriented Rewards**: Level 1 rewards survival. Levels 2 & 3 incentivize approaching treasure, punish idle camping, and provide massive reward spikes (+200.0) for collecting treasure while treating enemy collision as lethal (-1.0).
 - **Resolution Agnostic Training**: The AI trains across dynamically shifting resolutions `(640x480 to 1920x1080)` to teach spatial adaptation rather than memorizing routes.
 
 ### Configuration & Tuning

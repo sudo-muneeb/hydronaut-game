@@ -45,14 +45,14 @@ public:
 };
 
 // ─── Level1RewardStrategy ─────────────────────────────────────────────────────
-// Pure survival: +0.15/step, -100 on death, -100 after 100 idle frames.
+// Pure survival: +0.15/step, -1 on death, -1 after 100 idle frames.
 class Level1RewardStrategy final : public IRewardStrategy {
 public:
     RewardResult calculateReward(const EnvironmentContext& ctx) override;
 };
 
 // ─── Level2RewardStrategy ─────────────────────────────────────────────────────
-// Treasure approach shaping + +100 on collection + -100 on death + idleness.
+// Treasure approach shaping + +100 on collection + -1 on death + idleness.
 class Level2RewardStrategy final : public IRewardStrategy {
 public:
     RewardResult calculateReward(const EnvironmentContext& ctx) override;

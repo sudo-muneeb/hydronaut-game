@@ -22,7 +22,7 @@ inline constexpr float LR           = 1e-3f;    // Adam optimizer learning rate
 inline constexpr float TAU          = 0.005f;   // Soft target network update factor
 inline constexpr float EPS_START    = 1.0f;     // Initial exploration rate
 inline constexpr float EPS_END      = 0.08f;    // Minimum exploration rate
-inline constexpr float EPS_DECAY    = 0.9999f;  // Epsilon decay per episode
+inline constexpr float EPS_DECAY    = 0.995f;  // Epsilon decay per episode
 inline constexpr int   BATCH_SIZE   = 64;       // Mini-batch size for training
 
 // ─── Episode & Step Controls ──────────────────────────────────────────────────

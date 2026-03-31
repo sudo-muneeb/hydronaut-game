@@ -88,7 +88,7 @@ std::vector<float> Level1::getState() const {
     s[5] = std::clamp(pvel.x / PLAYER_MAX_SPEED, -1.f, 1.f);
     s[6] = std::clamp(pvel.y / PLAYER_MAX_SPEED, -1.f, 1.f);
     s[7] = std::clamp(static_cast<float>(m_stepsSinceReward) / 300.f, 0.f, 1.f);
-    s[8] = std::clamp(m_lastReward / 100.f, -1.f, 1.f);
+    s[8] = std::clamp(static_cast<float>(m_stepsSinceReward) / 300.f, 0.f, 1.f);
 
     auto snaps = m_pool.getSnapshots(ppos, RLConfig::MAX_OBJ_SLOTS);
     for (int i = 0; i < RLConfig::MAX_OBJ_SLOTS; ++i) {
