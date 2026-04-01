@@ -53,8 +53,7 @@ bool Level1::update() {
         }
     }
 
-    if (reward != 0.15f) m_stepsSinceReward = 0;
-    else                 ++m_stepsSinceReward;
+    m_stepsSinceReward = (died || reward < 0.f) ? 0 : m_stepsSinceReward + 1;
     m_lastReward = reward;
 
     return died;
@@ -100,23 +99,44 @@ std::vector<float> Level1::getState() const {
     s[14] = 0.f;  // treasure exists (0 = no treasure)
 
     // ── Threat slots — s[15-54]: 8 slots × 5 features = 40 ──────────────────────
-    // Enemies sorted by distance, fill slots 0-7, remainder stay 0
+    // Obstacles sorted by distance, fill slots 0-7, remainder stay 0
     auto snaps = m_pool.getSnapshots(ppos, RLConfig::MAX_OBJ_SLOTS);
-    for (int i = 0; i < RLConfig::MAX_OBJ_SLOTS; ++i) {
-        int base = 15 + i * 5;
-        const auto& snap = snaps[i];
+    
+    // Build sortable list with distances
+    struct SnapWithDist {
+        ObstacleSnapshot snap;
+        float dist;
+    };
+    std::vector<SnapWithDist> sorted;
+    sorted.reserve(snaps.size());
+    
+    for (auto& snap : snaps) {
         bool empty = (snap.center.x == 0.f && snap.center.y == 0.f &&
                       snap.velocity.x == 0.f && snap.velocity.y == 0.f);
-        
-        if (empty) {
-            s[base + 0] = 0.f;  // exists = 0
-            // rest stay 0
-        } else {
+        if (empty) continue;
+        float dx = snap.center.x - ppos.x;
+        float dy = snap.center.y - ppos.y;
+        sorted.push_back({snap, std::sqrt(dx*dx + dy*dy)});
+    }
+    
+    // Sort by distance — closest threat always in slot 0
+    std::sort(sorted.begin(), sorted.end(),
+        [](const SnapWithDist& a, const SnapWithDist& b){
+            return a.dist < b.dist;
+        });
+    
+    // Write sorted threats to state with relative positions
+    for (int i = 0; i < RLConfig::MAX_OBJ_SLOTS; ++i) {
+        int base = 15 + i * 5;
+        if (i < (int)sorted.size()) {
             s[base + 0] = 1.f;  // exists = 1
-            s[base + 1] = std::clamp(snap.center.x   / wf, 0.f, 1.f);
-            s[base + 2] = std::clamp(snap.center.y   / hf, 0.f, 1.f);
-            s[base + 3] = std::clamp(snap.velocity.x / RLConfig::MAX_VEL, -1.f, 1.f);
-            s[base + 4] = std::clamp(snap.velocity.y / RLConfig::MAX_VEL, -1.f, 1.f);
+            s[base + 1] = std::clamp(sorted[i].snap.center.x / wf, 0.f, 1.f);  // absolute x
+            s[base + 2] = std::clamp(sorted[i].snap.center.y / hf, 0.f, 1.f);  // absolute y
+            s[base + 3] = std::clamp((sorted[i].snap.center.x - ppos.x) / wf, -1.f, 1.f);  // relative x
+            s[base + 4] = std::clamp((sorted[i].snap.center.y - ppos.y) / hf, -1.f, 1.f);  // relative y
+        } else {
+            s[base + 0] = 0.f;  // exists = 0 — empty slot
+            // rest stay 0
         }
     }
 
@@ -175,8 +195,7 @@ std::vector<float> Level1::step(int action, float& reward, bool& isDone) {
 
     getEventBus().publish({"ScoreAdded", 1});
 
-    if (reward != 0.15f) m_stepsSinceReward = 0;
-    else                 ++m_stepsSinceReward;
+    m_stepsSinceReward = (isDone || reward < 0.f) ? 0 : m_stepsSinceReward + 1;
     m_lastReward = reward;
 
     return getState();

@@ -15,8 +15,10 @@ RewardResult Level1RewardStrategy::calculateReward(const EnvironmentContext& ctx
         return result;               // Early return — nothing else matters
     }
 
-    // No idle penalty: obstacles come to player. Hiding is valid IF it works
-    // (but eventually starfish will reach the corner and end the episode naturally).
+    // Small bonus for moving — counters the hiding behavior
+    if (ctx.playerSpeed > 1.0f) {
+        result.reward += 0.02f;  // Tiny bonus, just enough to prefer moving over standing
+    }
 
     return result;
 }

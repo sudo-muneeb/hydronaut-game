@@ -19,6 +19,7 @@
 int main(int argc, char* argv[]) {
     int episodes = RLConfig::EPISODES;
     unsigned seed = RLConfig::RANDOM_SEED;  // Default seed for reproducibility
+    bool showWindow = true;  // Default: show window during training
     
     if (argc >= 2) {
         try { episodes = std::stoi(argv[1]); }
@@ -28,13 +29,20 @@ int main(int argc, char* argv[]) {
         try { seed = std::stoul(argv[2]); }
         catch (...) { std::cerr << "inv seed using " << RLConfig::RANDOM_SEED << "\n"; }
     }
+    if (argc >= 4) {
+        try { showWindow = (std::stoi(argv[3]) == 0); }  // 0 = show, 1 = hide for faster training
+        catch (...) { std::cerr << "inv visibility flag using default (show window)\n"; }
+    }
 
     try {
-        // hidden window to keep math correct
+        // window to keep math correct
         sf::RenderWindow window(
             sf::VideoMode(1920, 1080),
-            "training", sf::Style::None);
-        window.setVisible(false);
+            "training", sf::Style::Close);
+        window.setVisible(showWindow);  // pass visibility flag: 0=show, 1=hide for faster training
+        window.setFramerateLimit(60);
+        
+        std::cerr << "[DEBUG] Window created and visibility set to: " << (showWindow ? "VISIBLE" : "HIDDEN") << "\n";
 
         AssetManager::instance().loadAll();
         
@@ -64,7 +72,8 @@ int main(int argc, char* argv[]) {
         std::cout << "[train] Episodes: " << episodes
                   << " | Seed: " << seed
                   << " | Buffer: " << RLConfig::BUFFER_CAPACITY
-                  << " | Batch: " << RLConfig::BATCH_SIZE << "\n\n";
+                  << " | Batch: " << RLConfig::BATCH_SIZE
+                  << " | Window: " << (showWindow ? "VISIBLE" : "HIDDEN") << "\n\n";
 
         int globalFrame = 0;
         int current_phase = 1; 
@@ -133,6 +142,11 @@ int main(int argc, char* argv[]) {
                     (globalFrame % RLConfig::LEARN_EVERY == 0)) {
                     auto batch = buffer.sample(RLConfig::BATCH_SIZE);
                     agent.learn(batch);
+                }
+
+                // Render frame if window is visible
+                if (showWindow) {
+                    env->renderFrame();
                 }
 
                 if (done) break;
