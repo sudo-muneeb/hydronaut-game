@@ -20,28 +20,59 @@
 #include "Level3.hpp"
 #include "DQNAgent.hpp"
 #include "RLConfig.hpp"
+#include "InputHandler.hpp"
 
 static constexpr int HOLD_MIN = 15;
 static constexpr int HOLD_MAX = 60;
 
+// ─── Helper: convert action to key display string ────────────────────────────
+std::string actionToKeyDisplay(int action) {
+    int baseDir;
+    bool dashReq, sonarReq;
+    InputHandler::decodeAction(action, baseDir, dashReq, sonarReq);
+
+    std::string keyStr;
+    
+    // Direction
+    switch (baseDir) {
+        case 0: keyStr = "↑"; break; // Up
+        case 1: keyStr = "↓"; break; // Down
+        case 2: keyStr = "←"; break; // Left
+        case 3: keyStr = "→"; break; // Right
+        default: keyStr = "◯"; break; // Idle
+    }
+    
+    // Special ability
+    if (sonarReq) keyStr += " + X";
+    else if (dashReq) keyStr += " + SPACE";
+    
+    return keyStr;
+}
+
 int main(int argc, char* argv[]) {
     int levelChoice = 2;
+    unsigned seed = RLConfig::RANDOM_SEED;  // Fixed seed for reproducible playback
+    
     if (argc >= 2) {
         try { levelChoice = std::stoi(argv[1]); }
         catch (...) {}
     }
+    if (argc >= 3) {
+        try { seed = std::stoul(argv[2]); }
+        catch (...) {}
+    }
+    
     if (levelChoice < 1 || levelChoice > 3) {
-        std::cerr << "Usage: play_hydronaut [1|2|3]\n";
+        std::cerr << "Usage: play_hydronaut [1|2|3] [seed]\n";
         return EXIT_FAILURE;
     }
 
     try {
-        // ── Window at full desktop resolution ─────────────────────────────────
-        // The window always tracks the actual screen — no hardcoded dimensions.
-        sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
+        // ── Fixed 1920x1080 window for consistent AI training/evaluation ──────
+        sf::VideoMode playMode(1920u, 1080u);
 
         sf::RenderWindow window(
-            desktop,
+            playMode,
             "Hydronaut — AI Play  (SimulationEnvironment " + std::to_string(levelChoice) + ")",
             sf::Style::Default);
         window.setFramerateLimit(60);
@@ -66,25 +97,28 @@ int main(int argc, char* argv[]) {
         DQNAgent agent;
         agent.load_model(RLConfig::MODEL_PATH);
         agent.setEpsilon(0.0f);
+        agent.setSeed(seed);  // Set seed for reproducible playback
 
         std::cout << "[play] SimulationEnvironment " << levelChoice
                   << " | State dim: " << RLConfig::STATE_DIM
+                  << " | Seed: " << seed
                   << " | Action hold: " << HOLD_MIN << "-" << HOLD_MAX << " frames\n"
+                  << "       Resolution: 1920x1080 (fixed)\n"
                   << "       ESC or close window to quit.\n\n";
 
-        // RNG for hold duration
-        std::mt19937 rng(std::random_device{}());
+        // RNG for hold duration — use fixed seed for reproducibility
+        std::mt19937 rng(seed);
         std::uniform_int_distribution<int> holdDist(HOLD_MIN, HOLD_MAX);
 
         auto& font = AssetManager::instance().font();
         int episodeCount = 0;
+        sf::Vector2u fixedPlaySize(1920u, 1080u);
 
         while (window.isOpen()) {
             ++episodeCount;
-            // Always read the current window size per episode — adapts to any resize.
-            const sf::Vector2u winSize = window.getSize();
-            env->setVirtualSize(winSize);
-            std::vector<float> state = env->reset(winSize);
+            // Always use fixed 1920x1080 for consistent AI evaluation
+            env->setVirtualSize(fixedPlaySize);
+            std::vector<float> state = env->reset(fixedPlaySize);
 
             float totalReward   = 0.f;
             int   frameCount    = 0;
@@ -101,12 +135,7 @@ int main(int argc, char* argv[]) {
                          event.key.code == sf::Keyboard::Escape)) {
                         window.close();
                     }
-                    if (event.type == sf::Event::Resized) {
-                        // Keep view in sync with actual window size — no clamping
-                        unsigned w = event.size.width;
-                        unsigned h = event.size.height;
-                        env->setVirtualSize({w, h});
-                    }
+                    // Fixed size: ignore resize events
                 }
                 if (!window.isOpen()) break;
 
@@ -125,7 +154,11 @@ int main(int argc, char* argv[]) {
                 totalReward += reward;
                 ++frameCount;
 
-                env->renderFrame();
+                // ── Render game with AI action display ──────────────────────
+                std::string keyDisplay = actionToKeyDisplay(currentAction);
+                env->renderFrameWithOverlay(keyDisplay, 
+                    sf::Color(30, 60, 100, 210),           // Dark blue background
+                    sf::Color(200, 200, 200, 180));        // Transparent white text
 
                 if (done) {
                     std::cout << "Episode " << episodeCount

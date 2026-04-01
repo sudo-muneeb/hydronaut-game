@@ -78,36 +78,47 @@ std::vector<float> Level1::getState() const {
     sf::Vector2f ppos = m_player.getPosition();
     sf::Vector2f pvel = m_player.getVelocity();
 
-    std::vector<float> s(50, 0.f);
+    std::vector<float> s(55, 0.f);
 
-    s[0] = 0.0f;
-    s[1] = std::clamp(wf / RLConfig::REF_W, 0.f, 1.f);
-    s[2] = std::clamp(hf / RLConfig::REF_H, 0.f, 1.f);
-    s[3] = std::clamp(ppos.x / wf, 0.f, 1.f);
-    s[4] = std::clamp(ppos.y / hf, 0.f, 1.f);
-    s[5] = std::clamp(pvel.x / PLAYER_MAX_SPEED, -1.f, 1.f);
-    s[6] = std::clamp(pvel.y / PLAYER_MAX_SPEED, -1.f, 1.f);
-    s[7] = std::clamp(static_cast<float>(m_stepsSinceReward) / 300.f, 0.f, 1.f);
-    s[8] = std::clamp(static_cast<float>(m_stepsSinceReward) / 300.f, 0.f, 1.f);
+    // ── Game state — s[0-10] ──────────────────────────────────────────────────
+    s[0] = 0.0f;                                              // Level 1 ID
+    s[1] = std::clamp(wf / RLConfig::REF_W, 0.f, 1.f);       // Viewport width
+    s[2] = std::clamp(hf / RLConfig::REF_H, 0.f, 1.f);       // Viewport height
+    s[3] = std::clamp(ppos.x / wf, 0.f, 1.f);               // Player x
+    s[4] = std::clamp(ppos.y / hf, 0.f, 1.f);               // Player y
+    s[5] = std::clamp(pvel.x / PLAYER_MAX_SPEED, -1.f, 1.f); // Player vx
+    s[6] = std::clamp(pvel.y / PLAYER_MAX_SPEED, -1.f, 1.f); // Player vy
+    s[7] = std::clamp(static_cast<float>(m_stepsSinceReward) / 300.f, 0.f, 1.f);  // Steps since reward
+    s[8] = m_player.dashAvailable() ? 1.f : 0.f;             // Dash available
+    s[9] = isSonarReady() ? 1.f : 0.f;                        // Sonar available
+    s[10] = std::min(1.0f, static_cast<float>(m_idleFrames) / 100.0f);  // Idle normalized
 
+    // ── Treasure block — s[11-14] (zeros: no treasure in Level 1) ──────────────
+    s[11] = 0.f;  // treasure x
+    s[12] = 0.f;  // treasure y
+    s[13] = 0.f;  // treasure distance
+    s[14] = 0.f;  // treasure exists (0 = no treasure)
+
+    // ── Threat slots — s[15-54]: 8 slots × 5 features = 40 ──────────────────────
+    // Enemies sorted by distance, fill slots 0-7, remainder stay 0
     auto snaps = m_pool.getSnapshots(ppos, RLConfig::MAX_OBJ_SLOTS);
     for (int i = 0; i < RLConfig::MAX_OBJ_SLOTS; ++i) {
-        int base = 9 + i * 5;
+        int base = 15 + i * 5;
         const auto& snap = snaps[i];
         bool empty = (snap.center.x == 0.f && snap.center.y == 0.f &&
                       snap.velocity.x == 0.f && snap.velocity.y == 0.f);
-        s[base + 0] = empty ? 0.f : 2.f / RLConfig::NUM_OBJ_TYPES;
-        s[base + 1] = std::clamp(snap.center.x   / wf, 0.f, 1.f);
-        s[base + 2] = std::clamp(snap.center.y   / hf, 0.f, 1.f);
-        s[base + 3] = std::clamp(snap.velocity.x / RLConfig::MAX_VEL, -1.f, 1.f);
-        s[base + 4] = std::clamp(snap.velocity.y / RLConfig::MAX_VEL, -1.f, 1.f);
+        
+        if (empty) {
+            s[base + 0] = 0.f;  // exists = 0
+            // rest stay 0
+        } else {
+            s[base + 0] = 1.f;  // exists = 1
+            s[base + 1] = std::clamp(snap.center.x   / wf, 0.f, 1.f);
+            s[base + 2] = std::clamp(snap.center.y   / hf, 0.f, 1.f);
+            s[base + 3] = std::clamp(snap.velocity.x / RLConfig::MAX_VEL, -1.f, 1.f);
+            s[base + 4] = std::clamp(snap.velocity.y / RLConfig::MAX_VEL, -1.f, 1.f);
+        }
     }
-
-    // ─── Ability readiness signals ───────────────────────────────────────────
-    // ─── Ability readiness signals ───────────────────────────────────────────
-    s[47] = m_player.dashAvailable() ? 1.f : 0.f;
-    s[48] = isSonarReady() ? 1.f : 0.f;
-    s[49] = std::min(1.0f, static_cast<float>(m_idleFrames) / 100.0f);
 
     return s;
 }
@@ -124,6 +135,9 @@ std::vector<float> Level1::reset(sf::Vector2u windowSize) {
 std::vector<float> Level1::step(int action, float& reward, bool& isDone) {
     auto winSize = m_window.getSize();
     float dt     = 1.f / 60.f;
+
+    // Update sonar display (radius expansion)
+    updateSonar(dt);
 
     float bonus = applyAction(m_player, action);
     m_player.setWindowSize(winSize);

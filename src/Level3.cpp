@@ -123,46 +123,59 @@ std::vector<float> Level3::getState() const {
     float wf = static_cast<float>(winSize.x ? winSize.x : 1);
     float hf = static_cast<float>(winSize.y ? winSize.y : 1);
 
-    sf::Vector2f ppos = m_player.getPosition();
-    sf::Vector2f pvel = m_player.getVelocity();
-    sf::Vector2f sC   = centreOf(m_sec.getBounds());
-    sf::Vector2f eC   = centreOf(m_expSine.getBounds());
-    sf::Vector2f tC   = centreOf(m_treasure.getBounds());
-    sf::Vector2f sV   = m_sec.getVelocity();
-    sf::Vector2f eV   = m_expSine.getVelocity();
+    sf::Vector2f ppos  = m_player.getPosition();
+    sf::Vector2f pvel  = m_player.getVelocity();
+    sf::Vector2f sC    = centreOf(m_sec.getBounds());
+    sf::Vector2f eC    = centreOf(m_expSine.getBounds());
+    sf::Vector2f tC    = centreOf(m_treasure.getBounds());
+    sf::Vector2f sV    = m_sec.getVelocity();
+    sf::Vector2f eV    = m_expSine.getVelocity();
+    float diag         = std::sqrt(wf * wf + hf * hf);
 
-    std::vector<float> s(50, 0.f);
+    std::vector<float> s(55, 0.f);
 
-    s[0] = 1.0f;
-    s[1] = std::clamp(wf / RLConfig::REF_W, 0.f, 1.f);
-    s[2] = std::clamp(hf / RLConfig::REF_H, 0.f, 1.f);
-    s[3] = std::clamp(ppos.x / wf, 0.f, 1.f);
-    s[4] = std::clamp(ppos.y / hf, 0.f, 1.f);
-    s[5] = std::clamp(pvel.x / PLAYER_MAX_SPEED, -1.f, 1.f);
-    s[6] = std::clamp(pvel.y / PLAYER_MAX_SPEED, -1.f, 1.f);
-    s[7] = std::clamp(static_cast<float>(m_stepsSinceReward) / 300.f, 0.f, 1.f);
-    s[8] = std::clamp(static_cast<float>(m_stepsSinceReward) / 300.f, 0.f, 1.f);
+    // ── Game state — s[0-10] ──────────────────────────────────────────────────
+    s[0] = 1.0f;                                              // Level 3 ID
+    s[1] = std::clamp(wf / RLConfig::REF_W, 0.f, 1.f);       // Viewport width
+    s[2] = std::clamp(hf / RLConfig::REF_H, 0.f, 1.f);       // Viewport height
+    s[3] = std::clamp(ppos.x / wf, 0.f, 1.f);               // Player x
+    s[4] = std::clamp(ppos.y / hf, 0.f, 1.f);               // Player y
+    s[5] = std::clamp(pvel.x / PLAYER_MAX_SPEED, -1.f, 1.f); // Player vx
+    s[6] = std::clamp(pvel.y / PLAYER_MAX_SPEED, -1.f, 1.f); // Player vy
+    s[7] = std::clamp(static_cast<float>(m_stepsSinceReward) / 300.f, 0.f, 1.f);  // Steps since reward
+    s[8] = m_player.dashAvailable() ? 1.f : 0.f;             // Dash available
+    s[9] = isSonarReady() ? 1.f : 0.f;                        // Sonar available
+    s[10] = std::min(1.0f, static_cast<float>(m_idleFrames) / 100.0f);  // Idle normalized
 
-    s[9]  = 5.f / RLConfig::NUM_OBJ_TYPES;
-    s[10] = std::clamp(sC.x / wf, 0.f, 1.f);
-    s[11] = std::clamp(sC.y / hf, 0.f, 1.f);
-    s[12] = std::clamp(sV.x / RLConfig::MAX_VEL, -1.f, 1.f);
-    s[13] = std::clamp(sV.y / RLConfig::MAX_VEL, -1.f, 1.f);
+    // ── Treasure block — s[11-14] (dedicated, always present in Level 3) ──────
+    float tdx = tC.x - ppos.x, tdy = tC.y - ppos.y;
+    s[11] = std::clamp(tC.x / wf, 0.f, 1.f);                 // Treasure x
+    s[12] = std::clamp(tC.y / hf, 0.f, 1.f);                 // Treasure y
+    s[13] = std::clamp(std::sqrt(tdx*tdx + tdy*tdy) / diag, 0.f, 1.f);  // Treasure distance
+    s[14] = 1.f;                                              // Treasure exists flag
 
-    s[14] = 6.f / RLConfig::NUM_OBJ_TYPES;
-    s[15] = std::clamp(eC.x / wf, 0.f, 1.f);
-    s[16] = std::clamp(eC.y / hf, 0.f, 1.f);
-    s[17] = std::clamp(eV.x / RLConfig::MAX_VEL, -1.f, 1.f);
-    s[18] = std::clamp(eV.y / RLConfig::MAX_VEL, -1.f, 1.f);
+    // ── Threat slots — s[15-54]: 8 slots × 5 features = 40 ──────────────────────
+    // Sort octopus and expanding sine by distance, fill slots 0-1, rest stay 0
+    struct ThreatEntry {
+        sf::Vector2f pos, vel;
+        float dist;
+    };
+    std::vector<ThreatEntry> threats = {
+        {sC, sV, std::sqrt((sC.x - ppos.x) * (sC.x - ppos.x) + (sC.y - ppos.y) * (sC.y - ppos.y))},
+        {eC, eV, std::sqrt((eC.x - ppos.x) * (eC.x - ppos.x) + (eC.y - ppos.y) * (eC.y - ppos.y))},
+    };
+    std::sort(threats.begin(), threats.end(),
+        [](const ThreatEntry& a, const ThreatEntry& b) { return a.dist < b.dist; });
 
-    s[19] = 1.f / RLConfig::NUM_OBJ_TYPES;
-    s[20] = std::clamp(tC.x / wf, 0.f, 1.f);
-    s[21] = std::clamp(tC.y / hf, 0.f, 1.f);
-
-    // ─── Ability readiness signals ───────────────────────────────────────────
-    s[47] = m_player.dashAvailable() ? 1.f : 0.f;
-    s[48] = isSonarReady() ? 1.f : 0.f;
-    s[49] = std::min(1.0f, static_cast<float>(m_idleFrames) / 100.0f);
+    for (int i = 0; i < (int)threats.size(); ++i) {
+        int base = 15 + i * 5;
+        s[base + 0] = 1.f;  // exists
+        s[base + 1] = std::clamp(threats[i].pos.x / wf, 0.f, 1.f);
+        s[base + 2] = std::clamp(threats[i].pos.y / hf, 0.f, 1.f);
+        s[base + 3] = std::clamp(threats[i].vel.x / RLConfig::MAX_VEL, -1.f, 1.f);
+        s[base + 4] = std::clamp(threats[i].vel.y / RLConfig::MAX_VEL, -1.f, 1.f);
+    }
+    // Slots 2–7 stay 0 (consistent empty padding)
 
     return s;
 }
@@ -182,6 +195,9 @@ std::vector<float> Level3::reset(sf::Vector2u windowSize) {
 std::vector<float> Level3::step(int action, float& reward, bool& isDone) {
     auto  winSize = getSimSize();
     float dt      = 1.f / 60.f;
+
+    // Update sonar display (radius expansion)
+    updateSonar(dt);
 
     float bonus = applyAction(m_player, action);
     m_player.setWindowSize(winSize);
@@ -237,8 +253,6 @@ std::vector<float> Level3::step(int action, float& reward, bool& isDone) {
     isDone |= result.episodeDone;
 
     m_stepsSinceReward = (reward > 0.f) ? 0 : m_stepsSinceReward + 1;
-    m_lastReward = reward;
-
     m_lastReward = reward;
 
     return getState();

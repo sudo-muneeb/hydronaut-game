@@ -7,6 +7,7 @@
 #include <random>
 #include <stdexcept>
 #include <algorithm>
+#include "RLConfig.hpp"
 
 struct Experience {
     std::vector<float> state;
@@ -20,8 +21,11 @@ class ReplayBuffer {
 public:
     explicit ReplayBuffer(std::size_t maxSize = 50'000)
         : m_maxSize(maxSize)
-        , m_rng(std::random_device{}())
+        , m_rng(RLConfig::RANDOM_SEED)  // Use fixed seed from RLConfig for reproducibility
     {}
+
+    // ── Set RNG seed for reproducibility ───────────────────────────────────────
+    void setSeed(unsigned seed) { m_rng.seed(seed); }
 
     // ── Push a new experience; evict the oldest if over capacity ─────────────
     void push(Experience exp) {

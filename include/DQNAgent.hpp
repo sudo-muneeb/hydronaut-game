@@ -46,7 +46,7 @@ public:
         , m_optimizer(m_onlineNet->parameters(),
                       torch::optim::AdamOptions(RLConfig::LR))
         , m_epsilon(RLConfig::EPS_START)
-        , m_rng(std::random_device{}())
+        , m_rng(RLConfig::RANDOM_SEED)  // Use fixed seed from RLConfig for reproducibility
         , m_dis01(0.f, 1.f)
         , m_disAction(0, RLConfig::ACTION_DIM - 1)
     {
@@ -55,6 +55,9 @@ public:
         m_onlineNet->train();
         m_targetNet->eval();
     }
+
+    // ── Set RNG seed for reproducibility ───────────────────────────────────────
+    void setSeed(unsigned seed) noexcept { m_rng.seed(seed); }
 
     // ── Set epsilon directly (e.g. 0.0 for pure exploitation) ────────────────
     void setEpsilon(float eps) noexcept { m_epsilon = eps; }

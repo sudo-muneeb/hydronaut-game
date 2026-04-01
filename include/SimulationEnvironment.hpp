@@ -65,6 +65,9 @@ public:
     // Call this from play.cpp after env->step() to show the full game view.
     void renderFrame();
 
+    // Render frame with custom overlay text (for AI action display in play mode)
+    void renderFrameWithOverlay(const std::string& overlayText, sf::Color bgColor, sf::Color textColor);
+
     // ─── Virtual size (multi-screen training / live resize) ─────────────────
     // Override the physics size used by step() without resizing the OS window.
     // Training uses this to randomise screen sizes each episode.
@@ -103,6 +106,9 @@ protected:
         m_stepsSinceReward = 0; m_lastReward = 0.f;
         m_idleFrames = 0;
     }
+
+    // Update sonar radius expansion each frame — called by both run() and step()
+    void updateSonar(float dt) noexcept;
 
     // Screen shake — trigger this when the player dashes or hits something.
     void triggerShake(int frames, float intensity) noexcept;
@@ -168,6 +174,7 @@ private:
     void drawGrazeHUD();
     void drawDebugOverlay();
     void drawMetricsOverlay();
+    void drawHumanInputDisplay(int action);
     void showGameOver();
     void showPauseOverlay();
 

@@ -18,9 +18,15 @@
 
 int main(int argc, char* argv[]) {
     int episodes = RLConfig::EPISODES;
+    unsigned seed = RLConfig::RANDOM_SEED;  // Default seed for reproducibility
+    
     if (argc >= 2) {
         try { episodes = std::stoi(argv[1]); }
         catch (...) { std::cerr << "inv ep count using " << RLConfig::EPISODES << "\n"; }
+    }
+    if (argc >= 3) {
+        try { seed = std::stoul(argv[2]); }
+        catch (...) { std::cerr << "inv seed using " << RLConfig::RANDOM_SEED << "\n"; }
     }
 
     try {
@@ -41,17 +47,24 @@ int main(int argc, char* argv[]) {
 
         ReplayBuffer buffer(RLConfig::BUFFER_CAPACITY);
         DQNAgent     agent;
+        
+        // Set seeds for reproducibility
+        buffer.setSeed(seed);
+        agent.setSeed(seed);
 
         sf::Vector2u trainSize(1920u, 1080u);
         lvl1.reset(trainSize);
         lvl2.reset(trainSize);
         lvl3.reset(trainSize);
 
-        // rng setup
-        std::mt19937 rng(std::random_device{}());
+        // rng setup — use fixed seed for reproducibility
+        std::mt19937 rng(seed);
         std::uniform_int_distribution<int> holdDist(RLConfig::HOLD_MIN, RLConfig::HOLD_MAX);
-        std::uniform_int_distribution<unsigned> widthDist(640, 1920);
-        std::uniform_int_distribution<unsigned> heightDist(480, 1080);
+
+        std::cout << "[train] Episodes: " << episodes
+                  << " | Seed: " << seed
+                  << " | Buffer: " << RLConfig::BUFFER_CAPACITY
+                  << " | Batch: " << RLConfig::BATCH_SIZE << "\n\n";
 
         int globalFrame = 0;
         int current_phase = 1; 
@@ -70,11 +83,10 @@ int main(int argc, char* argv[]) {
             // drain sfml events
             { sf::Event e; while (window.pollEvent(e)) {} }
 
-            // rand screen size 
-            sf::Vector2u randSize(widthDist(rng), heightDist(rng));
-            env->setVirtualSize(randSize);
+            // Use fixed training size 1920x1080 for consistent policy learning
+            env->setVirtualSize(trainSize);
 
-            std::vector<float> state = env->reset(randSize);
+            std::vector<float> state = env->reset(trainSize);
 
             float episodeReward   = 0.f;
             int   decisionCount   = 0;

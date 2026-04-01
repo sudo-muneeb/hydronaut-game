@@ -11,7 +11,10 @@ namespace RLConfig {
 
 // ─── Network Architecture ─────────────────────────────────────────────────────
 // Define the neural network structure for the DQN agent.
-inline constexpr int   STATE_DIM    = 50;   // Input: 50-dimensional state vector
+inline constexpr int   STATE_DIM    = 55;   // Input: 55-dimensional state vector
+//                                   // s[0-9]:     player/game state
+//                                   // s[10-14]:   treasure (dedicated block)
+//                                   // s[15-54]:   8 threat slots × 5 features = 40
 inline constexpr int   HIDDEN_DIM   = 128;  // Hidden layers dimension
 inline constexpr int   ACTION_DIM   = 15;   // Output: 5 directions × 3 abilities
 
@@ -38,10 +41,13 @@ inline constexpr int   PRINT_EVERY   = 10;     // Print stats every N episodes
 // ─── Replay Buffer ────────────────────────────────────────────────────────────
 inline constexpr int   BUFFER_CAPACITY = 50'000;  // Experience replay buffer size
 
+// ─── Random Seed ──────────────────────────────────────────────────────────────
+// Fixed seed for reproducible training. Set to 0 for non-deterministic behavior.
+inline constexpr unsigned RANDOM_SEED = 42;     // Fixed seed for reproducibility
+
 // ─── State Representation ─────────────────────────────────────────────────────
 // Constants for encoding the game state into the neural network input vector.
-inline constexpr int   MAX_OBJ_SLOTS  = 8;      // Max objects tracked in state
-inline constexpr int   NUM_OBJ_TYPES  = 6;      // Type IDs 1-6 (0 = empty)
+inline constexpr int   MAX_OBJ_SLOTS  = 8;      // Max threat slots (enemies only)
 inline constexpr float MAX_VEL        = 10.f;   // Max velocity for normalization
 inline constexpr float REF_W          = 1920.f; // Reference screen width
 inline constexpr float REF_H          = 1080.f; // Reference screen height

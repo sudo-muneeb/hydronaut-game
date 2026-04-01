@@ -93,16 +93,8 @@ int SimulationEnvironment::run() {
             m_frameMeasurementCount = 0;
         }
 
-        // ─── Sonar radius update ───────────────────────────────────────────
-        if (m_sonarActive) {
-            m_sonarRadius += SONAR_EXPAND_SPEED * dt;
-            if (m_sonarRadius >= SONAR_MAX_RADIUS) {
-                m_sonarActive = false;
-                m_sonarRadius = 0.f;
-                m_sonarFired  = true;
-                m_sonarCooldownClock.restart();
-            }
-        }
+        // ─── Update sonar radius expansion ────────────────────────────────
+        updateSonar(dt);
 
         m_window.clear();
         applyShake();
@@ -111,9 +103,12 @@ int SimulationEnvironment::run() {
         bool train = Settings::instance().isTrainOnPlay() && !m_trainingMode;
         std::vector<float> state;
         int legacyAction = -1;
+        // Always capture current input for display
+        int currentInputAction = InputHandler::pollCompositeAction();
+        
         if (train) {
             state = getState();
-            legacyAction = InputHandler::pollCompositeAction();
+            legacyAction = currentInputAction;
             InputHandler::pollAndQueue(m_cmdQueue);
         } else {
             // Even if not training natively, we map keyboard to queue for the game
@@ -137,6 +132,12 @@ int SimulationEnvironment::run() {
         if (m_showMetrics) drawMetricsOverlay();
         drawHUD();
         drawGrazeHUD();
+        
+        // Draw human input display (bottom-right, like AI mode)
+        if (currentInputAction >= 0 && currentInputAction <= 14) {
+            drawHumanInputDisplay(currentInputAction);
+        }
+        
         restoreView();
         m_window.display();
         sf::sleep(sf::milliseconds(10));
@@ -216,7 +217,52 @@ void SimulationEnvironment::renderFrame() {
     restoreView();
     m_window.display();
 }
-
+// Render frame with custom overlay (for AI action display in play mode)
+void SimulationEnvironment::renderFrameWithOverlay(const std::string& overlayText, 
+                                                   sf::Color bgColor, 
+                                                   sf::Color textColor) {
+    m_window.clear();
+    applyShake();
+    drawBackground();
+    draw();              // virtual — actual level sprites
+    drawSonarRing();
+    drawDebugOverlay();
+    drawHUD();
+    drawGrazeHUD();
+    
+    // Draw custom overlay at bottom-right
+    if (!overlayText.empty()) {
+        sf::Vector2f vs = viewSize(m_window);
+        float hScale = vs.y / 900.f;
+        
+        auto& font = AssetManager::instance().font();
+        sf::Text overlayText_obj;
+        overlayText_obj.setFont(font);
+        overlayText_obj.setCharacterSize(std::max(16u, static_cast<unsigned>(24.f * hScale)));
+        overlayText_obj.setFillColor(textColor);
+        overlayText_obj.setString(overlayText);
+        
+        sf::FloatRect bounds = overlayText_obj.getLocalBounds();
+        float pad = 8.f;
+        
+        sf::RectangleShape box(sf::Vector2f(bounds.width + pad * 2.f, bounds.height + pad * 2.f));
+        box.setFillColor(bgColor);
+        box.setOutlineThickness(2.f);
+        box.setOutlineColor(sf::Color(100, 180, 255, 240));
+        
+        float boxX = vs.x - bounds.width - pad * 3.f - 25.f;
+        float boxY = vs.y - bounds.height - pad * 3.f - 85.f;
+        
+        box.setPosition(boxX, boxY);
+        overlayText_obj.setPosition(boxX + pad, boxY + pad);
+        
+        m_window.draw(box);
+        m_window.draw(overlayText_obj);
+    }
+    
+    restoreView();
+    m_window.display();
+}
 // ─── Virtual size ─────────────────────────────────────────────────────────────
 // Overrides the physics/state coordinate space without resizing the OS window.
 void SimulationEnvironment::setVirtualSize(sf::Vector2u sz) noexcept {
@@ -242,6 +288,20 @@ void SimulationEnvironment::move(int baseDir) {
 void SimulationEnvironment::dash() {
     bool dashed = getPlayer().applyCommand(4, true);
     if (dashed) triggerShake(DASH_SHAKE_FRAMES, DASH_SHAKE_INTENSITY);
+}
+
+// ─── Sonar update ────────────────────────────────────────────────────────────
+// Update sonar radius expansion each frame — called by both run() and step()
+void SimulationEnvironment::updateSonar(float dt) noexcept {
+    if (m_sonarActive) {
+        m_sonarRadius += SONAR_EXPAND_SPEED * dt;
+        if (m_sonarRadius >= SONAR_MAX_RADIUS) {
+            m_sonarActive = false;
+            m_sonarRadius = 0.f;
+            m_sonarFired  = true;
+            m_sonarCooldownClock.restart();
+        }
+    }
 }
 
 void SimulationEnvironment::triggerSonar() {
@@ -495,6 +555,56 @@ void SimulationEnvironment::drawGrazeHUD() {
     m_grazeText.setOrigin(gb.width / 2.f, 0.f);
     m_grazeText.setPosition(vs.x / 2.f, vs.y * 0.012f);
     m_window.draw(m_grazeText);
+}
+
+// ─── Human input display (bottom-right) ───────────────────────────────────────
+void SimulationEnvironment::drawHumanInputDisplay(int action) {
+    sf::Vector2f vs = viewSize(m_window);
+    float hScale = vs.y / 900.f;
+    
+    // Convert action to display string
+    int baseDir;
+    bool dashReq, sonarReq;
+    InputHandler::decodeAction(action, baseDir, dashReq, sonarReq);
+    
+    std::string keyStr;
+    switch (baseDir) {
+        case 0: keyStr = "↑"; break;           // Up
+        case 1: keyStr = "↓"; break;           // Down
+        case 2: keyStr = "←"; break;           // Left
+        case 3: keyStr = "→"; break;           // Right
+        default: keyStr = "◯"; break;          // Idle
+    }
+    
+    if (sonarReq) keyStr += " + X";
+    else if (dashReq) keyStr += " + SPACE";
+    
+    // Create text
+    auto& font = AssetManager::instance().font();
+    sf::Text actionText;
+    actionText.setFont(font);
+    actionText.setCharacterSize(std::max(16u, static_cast<unsigned>(24.f * hScale)));
+    actionText.setFillColor(sf::Color(200, 200, 200, 180));  // Transparent white
+    actionText.setString(keyStr);
+    
+    sf::FloatRect bounds = actionText.getLocalBounds();
+    float pad = 8.f;
+    
+    // Background box
+    sf::RectangleShape box(sf::Vector2f(bounds.width + pad * 2.f, bounds.height + pad * 2.f));
+    box.setFillColor(sf::Color(30, 60, 100, 210));            // Dark blue
+    box.setOutlineThickness(2.f);
+    box.setOutlineColor(sf::Color(100, 180, 255, 240));       // Cyan outline
+    
+    // Position: bottom-right corner
+    float boxX = vs.x - bounds.width - pad * 3.f - 25.f;
+    float boxY = vs.y - bounds.height - pad * 3.f - 85.f;
+    
+    box.setPosition(boxX, boxY);
+    actionText.setPosition(boxX + pad, boxY + pad);
+    
+    m_window.draw(box);
+    m_window.draw(actionText);
 }
 
 // ─── Debug overlay ────────────────────────────────────────────────────────────
